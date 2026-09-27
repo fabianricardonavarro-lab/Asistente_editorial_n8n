@@ -2995,4 +2995,870 @@
     },
     "31. Airtable - Crear idea": {
       "main": [
+        [          {
+            "node": "32. Telegram - Idea guardada",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
+          {
+            "node": "90.09 Error - 31. Airtable - Crear idea",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "40. Preparar CONSULTAR": {
+      "main": [
+        [
+          {
+            "node": "40A. URL de consulta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "40A. URL de consulta": {
+      "main": [
+        [
+          {
+            "node": "41. Airtable - Consultar registros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "41. Airtable - Consultar registros": {
+      "main": [
+        [
+          {
+            "node": "42. Formatear consulta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "90.10 Error - 41. Airtable - Consultar registros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "42. Formatear consulta": {
+      "main": [
+        [
+          {
+            "node": "43. Telegram - Resultado consulta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "50. Preparar ANALIZAR": {
+      "main": [
+        [
+          {
+            "node": "51. Leer Canon",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "51. Leer Canon": {
+      "main": [
+        [
+          {
+            "node": "52. Leer Personajes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "52. Leer Personajes": {
+      "main": [
+        [
+          {
+            "node": "53. Leer Eventos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "53. Leer Eventos": {
+      "main": [
+        [
+          {
+            "node": "54. Leer Cabos abiertos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "54. Leer Cabos abiertos": {
+      "main": [
+        [
+          {
+            "node": "55. Leer Ideas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "55. Leer Ideas": {
+      "main": [
+        [
+          {
+            "node": "56. Construir prompt de análisis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "56. Construir prompt de análisis": {
+      "main": [
+        [
+          {
+            "node": "57. Gemini - Analizar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "57. Gemini - Analizar": {
+      "main": [
+        [
+          {
+            "node": "58. Preparar respuesta análisis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "90.11 Error - 57. Gemini - Analizar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "58. Preparar respuesta análisis": {
+      "main": [
+        [
+          {
+            "node": "59. Telegram - Análisis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "60. Preparar ESTADO": {
+      "main": [
+        [
+          {
+            "node": "61. Leer Documentos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "61. Leer Documentos": {
+      "main": [
+        [
+          {
+            "node": "62. Leer Ideas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "62. Leer Ideas": {
+      "main": [
+        [
+          {
+            "node": "63. Leer Cabos abiertos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "63. Leer Cabos abiertos": {
+      "main": [
+        [
+          {
+            "node": "64. Resumir ESTADO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "64. Resumir ESTADO": {
+      "main": [
+        [
+          {
+            "node": "65. Telegram - ESTADO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10A. ¿Borrador aprobado?": {
+      "main": [
+        [
+          {
+            "node": "10B. Recuperar borrador aprobado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "10C. ¿Solicitó cambios?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10B. Recuperar borrador aprobado": {
+      "main": [
+        [
+          {
+            "node": "15. Preparar documento y metadatos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "15H. Preparar aprobación humana": {
+      "main": [
+        [
+          {
+            "node": "15I. Airtable - Esperar aprobación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "15I. Airtable - Esperar aprobación": {
+      "main": [
+        [
+          {
+            "node": "15J. Telegram - Solicitar aprobación",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "90.02 Error - 15I. Airtable - Esperar aprobación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "15J. Telegram - Solicitar aprobación": {
+      "main": [
+        [],
+        [
+          {
+            "node": "90.03 Error - 15J. Telegram - Solicitar aprobación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "20. Gmail - Confirmar borrador": {
+      "main": [
+        [
+          {
+            "node": "96.A Preparar log éxito CREAR",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "90.08 Error - 20. Gmail - Confirmar borrador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "59. Telegram - Análisis": {
+      "main": [
+        [
+          {
+            "node": "96.D Preparar log éxito ANALIZAR",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "90.12 Error - 59. Telegram - Análisis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "65. Telegram - ESTADO": {
+      "main": [
+        [
+          {
+            "node": "96.E Preparar log éxito ESTADO",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "90.13 Error - 65. Telegram - ESTADO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "90.01 Error - 14. Gemini - Generar borrador": {
+      "main": [
+        [
+          {
+            "node": "91. Airtable - Registrar error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "92. Airtable - Registrar ejecución error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "93. Telegram - Avisar error controlado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "90.02 Error - 15I. Airtable - Esperar aprobación": {
+      "main": [
+        [
+          {
+            "node": "91. Airtable - Registrar error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "92. Airtable - Registrar ejecución error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "93. Telegram - Avisar error controlado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "90.03 Error - 15J. Telegram - Solicitar aprobación": {
+      "main": [
+        [
+          {
+            "node": "91. Airtable - Registrar error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "92. Airtable - Registrar ejecución error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "93. Telegram - Avisar error controlado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "90.04 Error - 16. Google Docs - Crear documento": {
+      "main": [
+        [
+          {
+            "node": "91. Airtable - Registrar error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "92. Airtable - Registrar ejecución error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "93. Telegram - Avisar error controlado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "90.05 Error - 17. Google Docs - Insertar cabecera y contenido": {
+      "main": [
+        [
+          {
+            "node": "91. Airtable - Registrar error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "92. Airtable - Registrar ejecución error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "93. Telegram - Avisar error controlado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "90.06 Error - 18. Airtable - Registrar metadatos": {
+      "main": [
+        [
+          {
+            "node": "91. Airtable - Registrar error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "92. Airtable - Registrar ejecución error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "93. Telegram - Avisar error controlado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "90.07 Error - 19. Telegram - Confirmar borrador": {
+      "main": [
+        [
+          {
+            "node": "91. Airtable - Registrar error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "92. Airtable - Registrar ejecución error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "93. Telegram - Avisar error controlado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "90.08 Error - 20. Gmail - Confirmar borrador": {
+      "main": [
+        [
+          {
+            "node": "91. Airtable - Registrar error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "92. Airtable - Registrar ejecución error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "93. Telegram - Avisar error controlado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "90.09 Error - 31. Airtable - Crear idea": {
+      "main": [
+        [
+          {
+            "node": "91. Airtable - Registrar error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "92. Airtable - Registrar ejecución error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "93. Telegram - Avisar error controlado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "90.10 Error - 41. Airtable - Consultar registros": {
+      "main": [
+        [
+          {
+            "node": "91. Airtable - Registrar error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "92. Airtable - Registrar ejecución error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "93. Telegram - Avisar error controlado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "90.11 Error - 57. Gemini - Analizar": {
+      "main": [
+        [
+          {
+            "node": "91. Airtable - Registrar error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "92. Airtable - Registrar ejecución error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "93. Telegram - Avisar error controlado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "90.12 Error - 59. Telegram - Análisis": {
+      "main": [
+        [
+          {
+            "node": "91. Airtable - Registrar error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "92. Airtable - Registrar ejecución error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "93. Telegram - Avisar error controlado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "90.13 Error - 65. Telegram - ESTADO": {
+      "main": [
+        [
+          {
+            "node": "91. Airtable - Registrar error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "92. Airtable - Registrar ejecución error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "93. Telegram - Avisar error controlado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "32. Telegram - Idea guardada": {
+      "main": [
+        [
+          {
+            "node": "96.B Preparar log éxito GUARDAR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "43. Telegram - Resultado consulta": {
+      "main": [
+        [
+          {
+            "node": "96.C Preparar log éxito CONSULTAR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "96.A Preparar log éxito CREAR": {
+      "main": [
+        [
+          {
+            "node": "97. Airtable - Registrar ejecución éxito",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "96.B Preparar log éxito GUARDAR": {
+      "main": [
+        [
+          {
+            "node": "97. Airtable - Registrar ejecución éxito",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "96.C Preparar log éxito CONSULTAR": {
+      "main": [
+        [
+          {
+            "node": "97. Airtable - Registrar ejecución éxito",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "96.D Preparar log éxito ANALIZAR": {
+      "main": [
+        [
+          {
+            "node": "97. Airtable - Registrar ejecución éxito",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "96.E Preparar log éxito ESTADO": {
+      "main": [
+        [
+          {
+            "node": "97. Airtable - Registrar ejecución éxito",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10C. ¿Solicitó cambios?": {
+      "main": [
+        [
+          {
+            "node": "10D. Construir prompt de cambios",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "21. ¿Idea lista para guardar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10D. Construir prompt de cambios": {
+      "main": [
+        [
+          {
+            "node": "10E. Gemini - Regenerar con cambios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10E. Gemini - Regenerar con cambios": {
+      "main": [
+        [
+          {
+            "node": "10F. Preparar nueva aprobación",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "90.12 Error - 10E. Gemini - Regenerar con cambios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10F. Preparar nueva aprobación": {
+      "main": [
+        [
+          {
+            "node": "10G. Airtable - Esperar aprobación revisada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10G. Airtable - Esperar aprobación revisada": {
+      "main": [
+        [
+          {
+            "node": "10H. Telegram - Solicitar aprobación revisada",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "90.13 Error - 10G. Airtable - Esperar aprobación revisada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10H. Telegram - Solicitar aprobación revisada": {
+      "main": [
+        [],
+        [
+          {
+            "node": "90.14 Error - 10H. Telegram - Solicitar aprobación revisada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "90.12 Error - 10E. Gemini - Regenerar con cambios": {
+      "main": [
+        [
+          {
+            "node": "91. Airtable - Registrar error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "92. Airtable - Registrar ejecución error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "93. Telegram - Avisar error controlado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "90.13 Error - 10G. Airtable - Esperar aprobación revisada": {
+      "main": [
+        [
+          {
+            "node": "91. Airtable - Registrar error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "92. Airtable - Registrar ejecución error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "93. Telegram - Avisar error controlado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "90.14 Error - 10H. Telegram - Solicitar aprobación revisada": {
+      "main": [
+        [
+          {
+            "node": "91. Airtable - Registrar error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "92. Airtable - Registrar ejecución error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "93. Telegram - Avisar error controlado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "64571ea6-ba8f-4d46-8606-44e6601a7bf6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e02935ef0fb9170aea0f2b3793d27104f0e583931ba7fc25fedf20af6c53e058"
+  },
+  "nodeGroups": [],
+  "id": "q3hfphX5hw24pEwa",
+  "tags": []
+}
