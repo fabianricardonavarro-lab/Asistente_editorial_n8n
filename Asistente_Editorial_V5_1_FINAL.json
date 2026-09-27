@@ -1,0 +1,2998 @@
+{
+  "name": "Asistente Editorial - V5.1 HITL con cambios y control de tokens",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "4330d19e-1815-461a-a0b3-44c958342f33",
+      "name": "1. Telegram - Mensaje recibido",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -240,
+        1232
+      ],
+      "webhookId": "7a7bfc2c-c06a-47ce-85c5-9cfbb8d2a39e",
+      "credentials": {
+        "telegramApi": {
+          "id": "Ou0iFlWS9CWwjla6",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const m=$json.message||{};return [{json:{chat_id:String(m.chat?.id??''),text:String(m.text??'').trim(),username:m.from?.username||'',first_name:m.from?.first_name||'',received_at:new Date().toISOString()}}];"
+      },
+      "id": "ab48ca9c-42b6-4a4b-925a-0daf91a3272d",
+      "name": "2. Normalizar mensaje",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -16,
+        1232
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appbrFkc7zcVAgB0r",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblGT6xPOHqOITWtb",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND(   {Chat ID}='{{ $(\"2. Normalizar mensaje\").first().json.chat_id }}',   {Activa}=TRUE() )",
+        "returnAll": false,
+        "limit": 1,
+        "options": {}
+      },
+      "id": "d216ef5a-8296-4251-bd4e-2e3f19cd4aa7",
+      "name": "3. Airtable - Buscar conversación pendiente",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        224,
+        1232
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "fE5DY8MYINlemCCN",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const incoming = $('2. Normalizar mensaje').first().json;\nconst item = $json || {};\n\nconst hasRecord = Boolean(\n  item.id ||\n  item['Chat ID'] ||\n  item.fields\n);\n\nif (!hasRecord || Object.keys(item).length === 0) {\n  return [{\n    json: {\n      ...incoming,\n      has_pending: false\n    }\n  }];\n}\n\nconst f = item.fields || item;\n\nlet payload = {};\n\ntry {\n  payload = JSON.parse(f['Payload JSON'] || '{}');\n} catch (e) {\n  payload = {};\n}\n\nreturn [{\n  json: {\n    ...incoming,\n    has_pending: true,\n    pending_record_id: item.id || f.id,\n    pending_intent: f['Intención'] || '',\n    pending_step: String(f['Paso pendiente'] || '').replace(/^=/, ''),\n    pending_payload: payload\n  }\n}];"
+      },
+      "id": "3a33eed0-53ef-45c0-8a60-3a9303330244",
+      "name": "4. Resolver contexto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        1232
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "07b938ae-d4ed-4194-9145-a873025b4e28",
+              "leftValue": "={{ $json.has_pending }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7e0dd7e5-b1fe-4c88-9feb-8380208bfe1d",
+      "name": "5. ¿Hay conversación pendiente?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        1232
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $json;\nconst text = (d.text || '').trim();\nconst payload = { ...(d.pending_payload || {}) };\n\nlet nextStep = d.pending_step;\nlet active = true;\nlet reply = '';\n\nif (\n  d.pending_intent === 'GUARDAR' &&\n  d.pending_step === 'categoria_idea'\n) {\n  if (!text) {\n    reply = 'Indícame una categoría para guardar la idea.';\n  } else {\n    payload.categoria = text;\n    nextStep = 'listo_guardar';\n    active = false;\n  }\n}\n\nelse if (\n  d.pending_intent === 'CREAR' &&\n  d.pending_step === 'extension'\n) {\n  const match = text.match(/(\\d{2,5})/);\n  const extension = match ? Number(match[1]) : null;\n\n  if (!extension) {\n    reply = 'Indícame una extensión aproximada en palabras. Por ejemplo: 800, 1200 o 2000.';\n  } else {\n    payload.extension = extension;\n    nextStep = 'categoria';\n    reply =\n      `Perfecto: ${extension} palabras.\\n\\n` +\n      `¿En qué categoría quieres guardarlo?\\n\\n` +\n      `Por ejemplo: Escritos, Cursos o KMS.`;\n  }\n}\n\nelse if (\n  d.pending_intent === 'CREAR' &&\n  d.pending_step === 'categoria'\n) {\n  if (!text) {\n    reply = 'Indícame una categoría para continuar.';\n  } else {\n    payload.categoria = text;\n    nextStep = 'lineamientos_especificos';\n    reply =\n      `Perfecto. Lo guardaré en la categoría \"${text}\".\\n\\n` +\n      `¿Quieres agregar lineamientos específicos? ` +\n      `Responde con ellos o \"no\".`;\n  }\n}\n\nelse if (\n  d.pending_intent === 'CREAR' &&\n  d.pending_step === 'lineamientos_especificos'\n) {\n  const noVals = [\n    'no', 'ninguno', 'ninguna', 'sin lineamientos', 'no gracias', 'nada'\n  ];\n\n  payload.lineamientos_especificos =\n    noVals.includes(text.toLowerCase()) ? '' : text;\n\n  if (!payload.extension) {\n    nextStep = 'extension';\n    active = true;\n    reply =\n      'Antes de generar el borrador me falta la extensión. ' +\n      '¿Cuántas palabras quieres aproximadamente?';\n  } else {\n    nextStep = 'listo_generar';\n    active = false;\n    reply =\n      `✅ Solicitud completa.\\n\\n` +\n      `Tipo: ${payload.tipo || 'Documento'}\\n` +\n      `Tema: ${payload.tema || 'Sin tema'}\\n` +\n      `Extensión: ${payload.extension} palabras\\n` +\n      `Categoría: ${payload.categoria || ''}\\n\\n` +\n      `Generaré un borrador para que lo apruebes antes de crear el documento.`;\n  }\n}\n\nelse if (\n  d.pending_intent === 'CREAR' &&\n  d.pending_step === 'aprobar_borrador'\n) {\n  const t = text.toLowerCase();\n  const aprobar = ['aprobar','apruebo','aprobado','sí','si','ok','aceptar','acepto'].includes(t);\n  const rechazar = ['rechazar','rechazo','rechazado','no','cancelar','cancelo'].includes(t);\n  const cambioMatch = text.match(/^\\s*(?:cambiar|cambio|cambios|modificar|modifica|revisar|revisa)\\s*:?\\s*(.+)$/i);\n\n  if (aprobar) {\n    nextStep = 'aprobado_documentar';\n    active = false;\n    payload.aprobacion_humana = true;\n    payload.aprobado_en = new Date().toISOString();\n    reply = '✅ Borrador aprobado. Crearé el Google Doc y registraré los metadatos.';\n  } else if (rechazar) {\n    nextStep = 'rechazado';\n    active = false;\n    payload.aprobacion_humana = false;\n    payload.rechazado_en = new Date().toISOString();\n    reply =\n      '🛑 Borrador rechazado. No se creó ningún documento. ' +\n      'Puedes iniciar una nueva solicitud cuando quieras.';\n  } else if (cambioMatch && cambioMatch[1].trim()) {\n    payload.solicitud_cambios = cambioMatch[1].trim();\n    payload.aprobacion_humana = false;\n    payload.revision_count = (Number(payload.revision_count) || 0) + 1;\n    nextStep = 'solicitar_cambios';\n    active = false;\n    reply =\n      '✏️ Entendido. Aplicaré los cambios solicitados y generaré una nueva versión para tu aprobación.';\n  } else {\n    nextStep = 'aprobar_borrador';\n    active = true;\n    reply =\n      'Necesito una decisión explícita antes de crear el documento.\\n\\n' +\n      'Responde APROBAR, RECHAZAR o CAMBIAR: seguido de tus instrucciones.';\n  }\n}\n\nelse {\n  active = false;\n  nextStep = 'cerrada';\n  reply =\n    'La conversación pendiente tenía un estado no reconocido. ' +\n    'Ya puedes iniciar otra solicitud.';\n}\n\nreturn [{\n  json: {\n    ...d,\n    updated_payload_json: JSON.stringify(payload),\n    next_step: nextStep,\n    active,\n    reply,\n    updated_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "59a2b9df-0169-443b-96ab-d811be8d1c87",
+      "name": "6A. Procesar respuesta pendiente",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appbrFkc7zcVAgB0r",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblGT6xPOHqOITWtb",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Paso pendiente": "={{ $json.next_step }}",
+            "Payload JSON": "={{ $json.updated_payload_json }}",
+            "Activa": "={{ $json.active }}",
+            "Última actualización": "={{ $json.updated_at }}",
+            "id": "={{ $json.pending_record_id }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "Chat ID",
+              "displayName": "Chat ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Intención",
+              "displayName": "Intención",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Paso pendiente",
+              "displayName": "Paso pendiente",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Payload JSON",
+              "displayName": "Payload JSON",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Activa",
+              "displayName": "Activa",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Última actualización",
+              "displayName": "Última actualización",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "04a07bed-cb62-4208-97b0-97ac1af2ac9b",
+      "name": "7A. Airtable - Actualizar conversación",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1936,
+        592
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "fE5DY8MYINlemCCN",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('6A. Procesar respuesta pendiente').first().json.chat_id }}",
+        "text": "={{ $('6A. Procesar respuesta pendiente').first().json.reply }}",
+        "additionalFields": {}
+      },
+      "id": "76e52c3e-a921-4ac3-bd25-fe6bd9562579",
+      "name": "8A. Telegram - Continuar conversación",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2208,
+        592
+      ],
+      "webhookId": "e969935e-627a-4c1e-87ed-5b291a2db77e",
+      "credentials": {
+        "telegramApi": {
+          "id": "Ou0iFlWS9CWwjla6",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const d=$json,t=(d.text||'').trim();let intent='DESCONOCIDA';\nif(/\\b(analiza|analizar|contradicci[oó]n|contradice|inconsistencia|coherencia|compara|comparar|duplicad[oa]s?)\\b/i.test(t))intent='ANALIZAR';\nelse if(/\\b(estado|pendientes?|borradores?|revisi[oó]n)\\b/i.test(t)&&/\\b(estado|qu[eé]|cu[aá]ntos?|mostrar|mu[eé]strame|lista|listar|pendientes?|borradores?)\\b/i.test(t))intent='ESTADO';\nelse if(/\\b(guarda|guardar|anota|anotar|registra|registrar|apunta|apuntar)\\b/i.test(t))intent='GUARDAR';\nelse if(/\\b(crea|crear|escribe|escribir|redacta|redactar|genera|generar|prepara|preparar|hazme|haz)\\b/i.test(t))intent='CREAR';\nelse if(/\\b(lista|listar|mu[eé]strame|qu[eé] tengo|busca|buscar|consulta|consultar|encuentra|ver)\\b/i.test(t))intent='CONSULTAR';\nlet tipo='Otro';if(/\\bart[ií]culo\\b/i.test(t))tipo='Artículo';else if(/\\bpoema\\b/i.test(t))tipo='Poema';else if(/\\btemario\\b|\\bcurso\\b/i.test(t))tipo='Temario';else if(/\\bdefinici[oó]n\\b/i.test(t))tipo='Definición';else if(/\\bidea comercial\\b/i.test(t))tipo='Idea comercial';else if(/\\bescena\\b/i.test(t))tipo='Escena narrativa';else if(/\\bpropuesta\\b/i.test(t))tipo='Propuesta breve';\nconst ext=t.match(/(\\d{2,5})\\s*(?:palabras?|words?)/i),extension=ext?Number(ext[1]):null;let tema=t;const sobre=t.match(/\\bsobre\\s+(.+)/i);if(sobre)tema=sobre[1].trim();return [{json:{...d,intent,tipo,extension,tema,original_request:t}}];"
+      },
+      "id": "1a411843-5487-4cd3-9bb5-c82711b512e1",
+      "name": "6B. Interpretar intención preliminar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "879afcc3-0125-4008-8c5f-8c31905c1c53",
+              "leftValue": "={{ $json.intent }}",
+              "rightValue": "CREAR",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1c7509e8-2a1f-4770-bbad-757f3b8ef9fc",
+      "name": "7B. ¿Es una creación?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1920,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $json;\n\nconst payload = {\n  accion: 'CREAR',\n  tipo: d.tipo,\n  tema: d.tema,\n  extension: d.extension,\n  solicitud_original: d.original_request\n};\n\nconst faltaExtension = !d.extension;\n\nconst next_step = faltaExtension ? 'extension' : 'categoria';\n\nconst question = faltaExtension\n  ? `Entendido 🙂\\n\\nTipo: ${d.tipo}\\nTema: ${d.tema}\\n\\n¿Qué extensión quieres para el texto?\\n\\nPor ejemplo: 800, 1200 o 2000 palabras.`\n  : `Entendido 🙂\\n\\nTipo: ${d.tipo}\\nExtensión: ${d.extension} palabras\\nTema: ${d.tema}\\n\\n¿En qué categoría quieres guardarlo?\\n\\nPor ejemplo: Escritos, Cursos o KMS.`;\n\nreturn [{\n  json: {\n    ...d,\n    payload_json: JSON.stringify(payload),\n    next_step,\n    now: new Date().toISOString(),\n    question\n  }\n}];"
+      },
+      "id": "30020fbc-8c13-4631-b28a-52962e643aad",
+      "name": "8B. Preparar solicitud CREAR",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2192,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appbrFkc7zcVAgB0r",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblGT6xPOHqOITWtb",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Chat ID": "={{ $json.chat_id }}",
+            "Intención": "CREAR",
+            "Payload JSON": "={{ $json.payload_json }}",
+            "Activa": true,
+            "Última actualización": "={{ $json.now }}",
+            "Paso pendiente": "={{ $json.next_step }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Chat ID",
+              "displayName": "Chat ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Intención",
+              "displayName": "Intención",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Paso pendiente",
+              "displayName": "Paso pendiente",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Payload JSON",
+              "displayName": "Payload JSON",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Activa",
+              "displayName": "Activa",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Última actualización",
+              "displayName": "Última actualización",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "6ebd3007-d290-432c-ae7a-4ee15776e331",
+      "name": "9B. Airtable - Guardar conversación",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2464,
+        848
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "fE5DY8MYINlemCCN",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('8B. Preparar solicitud CREAR').first().json.chat_id }}",
+        "text": "={{ $('8B. Preparar solicitud CREAR').first().json.question }}",
+        "additionalFields": {}
+      },
+      "id": "9a06e869-2598-42a1-aecf-2ab644a54ee5",
+      "name": "10B. Telegram - Preguntar categoría",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2736,
+        848
+      ],
+      "webhookId": "32a1d86c-109e-4633-a662-7f6f6160776d",
+      "credentials": {
+        "telegramApi": {
+          "id": "Ou0iFlWS9CWwjla6",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...$json,reply:'Puedo CREAR borradores, GUARDAR ideas, CONSULTAR registros, ANALIZAR coherencia y mostrar el ESTADO editorial. Dime qué necesitas.'}}];"
+      },
+      "id": "5b0ef68e-3d4f-4a03-83b0-871e0179f9c1",
+      "name": "8C. Preparar respuesta otras acciones",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2192,
+        1088
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.reply }}",
+        "additionalFields": {}
+      },
+      "id": "630786a1-a1cb-4fdd-a554-b7c7245ce473",
+      "name": "9C. Telegram - Acción futura",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2464,
+        1088
+      ],
+      "webhookId": "aac64f39-2dea-4f4a-ba7a-62ab0a02af61",
+      "credentials": {
+        "telegramApi": {
+          "id": "Ou0iFlWS9CWwjla6",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "62250f55-cada-42d3-82a1-79146c3ad27b",
+              "leftValue": "={{ $('6A. Procesar respuesta pendiente').first().json.next_step }}",
+              "rightValue": "listo_generar",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0205e874-2413-4e90-ab68-10b64c8e8c9d",
+      "name": "11. ¿Solicitud CREAR completa?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -208,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appbrFkc7zcVAgB0r",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblkNVKzRqSHGBAiy",
+          "mode": "id"
+        },
+        "filterByFormula": "{Activo}=TRUE()",
+        "options": {}
+      },
+      "id": "542be094-2610-4013-8fe4-3b3ee1ec700e",
+      "name": "12. Airtable - Buscar lineamientos activos",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "fE5DY8MYINlemCCN",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const d=$('6A. Procesar respuesta pendiente').first().json;\nconst p=JSON.parse(d.updated_payload_json||'{}');\nconst norm=s=>String(s||'').trim().toLocaleLowerCase('es');\nconst tipo=norm(p.tipo),categoria=norm(p.categoria),subcategoria=norm(p.subcategoria),proyecto=norm(p.proyecto);\nconst rules=$input.all().map(i=>i.json.fields||i.json).filter(f=>f&&f.Activo===true&&f.Lineamiento).filter(f=>{const a=norm(f['Ámbito']);const nivel=norm(f.Nivel?.name||f.Nivel);return a==='todos'||a==='general'||a===''||a===tipo||a===categoria||a===subcategoria||a===proyecto||((nivel==='general')&&a==='todos');}).sort((a,b)=>(Number(a.Prioridad)||99)-(Number(b.Prioridad)||99));\nconst permanent=rules.map(f=>`- ${f.Nombre||'Regla'}: ${f.Lineamiento}`).join('\\n');\nconst prompt=`Eres un asistente editorial. Redacta en español un borrador para revisión humana. Devuelve exclusivamente el contenido del documento, sin cabecera de metadatos ni bloques de código. La primera línea debe ser un título breve y específico.\\n\\nSolicitud original: ${p.solicitud_original||''}\\nTipo: ${p.tipo||'Documento'}\\nTema: ${p.tema||''}\\nExtensión solicitada: ${p.extension||'No indicada'} palabras\\nCategoría: ${p.categoria||''}\\nSubcategoría: ${p.subcategoria||'No indicada'}\\nProyecto: ${p.proyecto||'No indicado'}\\nLineamientos específicos: ${p.lineamientos_especificos||'Ninguno'}\\n\\nLineamientos permanentes aplicables:\\n${permanent||'Ninguno registrado'}\\n\\nMantén la extensión solicitada cuando sea posible. No inventes hechos, fuentes o citas; si faltan datos, indícalo claramente. No declares el texto como versión final.`;\nconst gemini_body=JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.6,maxOutputTokens:8192}});\nreturn [{json:{chat_id:d.chat_id,pending_record_id:d.pending_record_id,payload:p,prompt,gemini_body,permanent_rules:rules.map(f=>f.Nombre||'Regla'),created_at:new Date().toISOString()}}];"
+      },
+      "id": "00671e44-b3ff-4417-9c40-161597a895c0",
+      "name": "13. Construir prompt final",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googlePalmApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.gemini_body }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "d31f065d-bc7a-4a90-92ef-057adca018e9",
+      "name": "14. Gemini - Generar borrador",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        0
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ie5LHKKlkJqIpKM4",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "let source;\nlet p;\nlet title;\nlet body;\nlet words;\nlet createdAt;\n\nif ($json.approved_draft) {\n  const a = $json.approved_draft;\n  p = a.payload || {};\n  title = a.title;\n  body = a.body;\n  words = Number(a.word_count) || (body.match(/\\S+/g) || []).length;\n  createdAt = a.created_at || new Date().toISOString();\n  source = {\n    chat_id: $json.chat_id,\n    payload: p,\n    created_at: createdAt\n  };\n} else {\n  // Fallback compatible con la ruta histórica por si se prueba manualmente el nodo.\n  source = $('13. Construir prompt final').first().json;\n  p = source.payload;\n\n  const text = ($json.candidates?.[0]?.content?.parts || [])\n    .map(part => part.text || '')\n    .join('\\n')\n    .trim();\n\n  if (!text) {\n    throw new Error('Gemini no devolvió contenido; no se crea documento ni se envía confirmación.');\n  }\n\n  const lines = text\n    .split(/\\r?\\n/)\n    .map(line => line.trim())\n    .filter(Boolean);\n\n  title = (lines[0] || `${p.tipo || 'Documento'}: ${p.tema || 'Sin tema'}`)\n    .replace(/^#+\\s*/, '')\n    .slice(0, 180);\n\n  body = (lines.length > 1 ? lines.slice(1).join('\\n\\n') : text).trim();\n  words = (body.match(/\\S+/g) || []).length;\n  createdAt = source.created_at;\n}\n\nconst date = new Date(createdAt).toLocaleDateString('es-CL', {\n  timeZone: 'America/Santiago',\n  year: 'numeric',\n  month: '2-digit',\n  day: '2-digit',\n});\n\nconst docText = `Título: ${title}\nEstado: BORRADOR APROBADO\nFecha: ${date}\nCategoría: ${p.categoria || 'Sin indicar'}\nSubcategoría: ${p.subcategoria || 'Sin indicar'}\nProyecto: ${p.proyecto || 'No indicado'}\nTipo: ${p.tipo || 'Documento'}\nExtensión solicitada: ${p.extension || 'No indicada'}${p.extension ? ' palabras' : ''}\nExtensión final: ${words} palabras\nAprobación humana: SÍ\n\n${body}\n`;\n\nconst insert_body = JSON.stringify({\n  requests: [\n    {\n      insertText: {\n        endOfSegmentLocation: {},\n        text: docText,\n      },\n    },\n  ],\n});\n\nreturn [{\n  json: {\n    ...source,\n    payload: p,\n    created_at: createdAt,\n    title,\n    body,\n    word_count: words,\n    doc_text: docText,\n    insert_body,\n    summary: body.slice(0, 450),\n    human_approved: true\n  },\n}];"
+      },
+      "id": "5b7471dc-bdaa-4877-8089-542e9d6a4a29",
+      "name": "15. Preparar documento y metadatos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://docs.googleapis.com/v1/documents",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDocsOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({title:$json.title}) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "317e78a3-9df7-4b02-a41b-28bf16bdfbdb",
+      "name": "16. Google Docs - Crear documento",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        0
+      ],
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "FzPTC1kvyWL87dIR",
+          "name": "Google Docs account"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://docs.googleapis.com/v1/documents/'+$json.documentId+':batchUpdate' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDocsOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $('15. Preparar documento y metadatos').first().json.insert_body }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "66fad501-d3f6-4ff0-930b-022809abd4f6",
+      "name": "17. Google Docs - Insertar cabecera y contenido",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1104,
+        0
+      ],
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "FzPTC1kvyWL87dIR",
+          "name": "Google Docs account"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appbrFkc7zcVAgB0r",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblet7NXshqghNyNi",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Título": "={{ $('15. Preparar documento y metadatos').first().json.title }}",
+            "Tipo": "={{ $('15. Preparar documento y metadatos').first().json.payload.tipo }}",
+            "Categoría": "={{ $('15. Preparar documento y metadatos').first().json.payload.categoria }}",
+            "Subcategoría": "={{ $('15. Preparar documento y metadatos').first().json.payload.subcategoria || '' }}",
+            "Proyecto": "={{ $('15. Preparar documento y metadatos').first().json.payload.proyecto || '' }}",
+            "Tema": "={{ $('15. Preparar documento y metadatos').first().json.payload.tema }}",
+            "Extensión solicitada": "={{ Number($('15. Preparar documento y metadatos').first().json.payload.extension) || null }}",
+            "Extensión final": "={{ $('15. Preparar documento y metadatos').first().json.word_count }}",
+            "Estado": "BORRADOR",
+            "URL Google Doc": "={{ 'https://docs.google.com/document/d/'+$('16. Google Docs - Crear documento').first().json.documentId+'/edit' }}",
+            "Resumen": "={{ $('15. Preparar documento y metadatos').first().json.summary }}",
+            "Lineamientos específicos": "={{ $('15. Preparar documento y metadatos').first().json.payload.lineamientos_especificos || '' }}",
+            "Fecha creación": "={{ $('15. Preparar documento y metadatos').first().json.created_at }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "c2f55c54-8b03-4fe4-a7b5-096c47718bc4",
+      "name": "18. Airtable - Registrar metadatos",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1328,
+        0
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "fE5DY8MYINlemCCN",
+          "name": "Airtable Personal Access Token account"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('15. Preparar documento y metadatos').first().json.chat_id }}",
+        "text": "=={{\n  '<b>✅ Borrador creado:</b> ' +\n  $('15. Preparar documento y metadatos').first().json.title +\n  '\\n\\n' +\n  '<a href=\"https://docs.google.com/document/d/' +\n  $('16. Google Docs - Crear documento').first().json.documentId +\n  '/edit\">📄 Abrir documento</a>'\n}}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "9e63ac53-8445-4a70-b5d0-163c4a0bc8db",
+      "name": "19. Telegram - Confirmar borrador",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1552,
+        0
+      ],
+      "webhookId": "ce839140-0514-4f3d-a72d-648f1c237106",
+      "credentials": {
+        "telegramApi": {
+          "id": "Ou0iFlWS9CWwjla6",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "fabianricardonavarro@gmail.com",
+        "subject": "={{ 'Borrador creado: '+$('15. Preparar documento y metadatos').first().json.title }}",
+        "emailType": "text",
+        "message": "={{ 'Se creó el borrador '+$('15. Preparar documento y metadatos').first().json.title+'\\n'+ 'https://docs.google.com/document/d/'+$('16. Google Docs - Crear documento').first().json.documentId+'/edit' }}",
+        "options": {}
+      },
+      "id": "6143ac41-2006-46f8-821c-cc6ab02bdbaa",
+      "name": "20. Gmail - Confirmar borrador",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        0
+      ],
+      "webhookId": "15e88841-3855-40c2-ae45-879ebb1d9c2b",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EZGPkGkG1jbNxyGe",
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "879afcc3-0125-4008-8c5f-8c31905c1c53",
+              "leftValue": "={{ $('6A. Procesar respuesta pendiente').first().json.next_step }}",
+              "rightValue": "listo_guardar",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4eb16b68-7073-44a4-b9d0-b39b035b3ea1",
+      "name": "21. ¿Idea lista para guardar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -368,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "879afcc3-0125-4008-8c5f-8c31905c1c53",
+              "leftValue": "={{ $json.intent }}",
+              "rightValue": "GUARDAR",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "dd94815a-e629-4c2f-88c1-e8d9f592d345",
+      "name": "22. ¿Guardar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2368,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "879afcc3-0125-4008-8c5f-8c31905c1c53",
+              "leftValue": "={{ $json.intent }}",
+              "rightValue": "CONSULTAR",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2765b225-2195-463e-911a-80959f43811b",
+      "name": "23. ¿Consultar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2624,
+        1392
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "879afcc3-0125-4008-8c5f-8c31905c1c53",
+              "leftValue": "={{ $json.intent }}",
+              "rightValue": "ANALIZAR",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f62763b9-c7ee-42c4-97aa-2e66a631c785",
+      "name": "24. ¿Analizar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2864,
+        1600
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "879afcc3-0125-4008-8c5f-8c31905c1c53",
+              "leftValue": "={{ $json.intent }}",
+              "rightValue": "ESTADO",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1f8f31f7-fff0-424c-8b38-ea42f53fcce8",
+      "name": "25. ¿Estado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3120,
+        1792
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d=$json,t=(d.original_request||d.text||'').trim();const body=t.replace(/^(guarda|guardar|anota|anotar|registra|registrar|apunta|apuntar)\\s*(?:esta?\\s+)?(?:idea|nota|concepto|escena)?\\s*[:,-]?\\s*/i,'').trim()||t;\nconst cat=t.match(/\\b(?:categor[ií]a|en la categor[ií]a)\\s*[:=-]?\\s*([^,;.]+)/i),project=t.match(/\\bproyecto\\s*[:=-]?\\s*([^,;.]+)/i),sub=t.match(/\\bsubcategor[ií]a\\s*[:=-]?\\s*([^,;.]+)/i);const categoria=cat?cat[1].trim():'';\nconst payload={accion:'GUARDAR',idea:body,solicitud_original:t,categoria,proyecto:project?project[1].trim():'',subcategoria:sub?sub[1].trim():''};\nreturn [{json:{...d,payload,payload_json:JSON.stringify(payload),now:new Date().toISOString(),needs_category:!categoria,question:'¿En qué categoría guardo esta idea? Puedes responder, por ejemplo, Escritos, Cursos o KMS.'}}];"
+      },
+      "id": "bde9e3da-118a-4c64-90ea-ffa3adaba80a",
+      "name": "26. Preparar GUARDAR",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2672,        1104
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "879afcc3-0125-4008-8c5f-8c31905c1c53",
+              "leftValue": "={{ String($json.needs_category) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "891691f5-b440-4a09-b2d7-d90f78ad455c",
+      "name": "27. ¿Falta categoría?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2912,
+        1104
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appbrFkc7zcVAgB0r",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblGT6xPOHqOITWtb",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Chat ID": "={{ $json.chat_id }}",
+            "Intención": "GUARDAR",
+            "Paso pendiente": "categoria_idea",
+            "Payload JSON": "={{ $json.payload_json }}",
+            "Activa": true,
+            "Última actualización": "={{ $json.now }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "e99352c9-e968-4dea-838f-99c37208a1bb",
+      "name": "28. Airtable - Pendiente GUARDAR",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        3168,
+        944
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "fE5DY8MYINlemCCN",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('26. Preparar GUARDAR').first().json.chat_id }}",
+        "text": "={{ $('26. Preparar GUARDAR').first().json.question }}",
+        "additionalFields": {}
+      },
+      "id": "42f44a12-2bed-42ce-b933-55a7efffaa06",
+      "name": "29. Telegram - Preguntar categoría de idea",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3424,
+        944
+      ],
+      "webhookId": "65160211-5a00-4d71-840b-56f10ce35c3f",
+      "credentials": {
+        "telegramApi": {
+          "id": "Ou0iFlWS9CWwjla6",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const d=$json,fromPending=Boolean(d.id||d['Paso pendiente']);const source=fromPending?$('6A. Procesar respuesta pendiente').first().json:d;const p=fromPending?JSON.parse(source.updated_payload_json||'{}'):(source.payload||{});const idea=(p.idea||'').trim();if(!idea||!p.categoria)throw new Error('Falta contenido o categoría de la idea.');\nlet title=idea.replace(/^(que|idea|nota)\\s*[:,-]?\\s*/i,'').split(/[.!?\\n]/)[0].trim().slice(0,110);if(!title)title='Idea '+new Date().toISOString().slice(0,10);\nreturn [{json:{chat_id:source.chat_id,title,idea,categoria:p.categoria,subcategoria:p.subcategoria||'',proyecto:p.proyecto||'',tema:title,created_at:new Date().toISOString()}}];"
+      },
+      "id": "17c2f127-14ff-43b8-8b21-76d567e00674",
+      "name": "30. Preparar registro de idea",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3568,
+        704
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appbrFkc7zcVAgB0r",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl6X4yiSAB1SqrHM",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Título": "={{ $json.title }}",
+            "Idea": "={{ $json.idea }}",
+            "Categoría": "={{ $json.categoria }}",
+            "Subcategoría": "={{ $json.subcategoria }}",
+            "Proyecto": "={{ $json.proyecto }}",
+            "Tema": "={{ $json.tema }}",
+            "Estado": "Pendiente",
+            "Fuente": "Telegram",
+            "Fecha creación": "={{ $json.created_at }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "d5275aa9-4a7c-452d-b462-ff6d862667fa",
+      "name": "31. Airtable - Crear idea",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        3824,
+        704
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "fE5DY8MYINlemCCN",
+          "name": "Airtable Personal Access Token account"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('30. Preparar registro de idea').first().json.chat_id }}",
+        "text": "={{ '✅ Idea guardada: '+$('30. Preparar registro de idea').first().json.title+'\\nCategoría: '+$('30. Preparar registro de idea').first().json.categoria }}",
+        "additionalFields": {}
+      },
+      "id": "d7f92a7c-a9e4-4bb1-b2b6-368b93fbf711",
+      "name": "32. Telegram - Idea guardada",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        4064,
+        704
+      ],
+      "webhookId": "4c5ae537-d505-4cb9-a816-45433e5e7dc1",
+      "credentials": {
+        "telegramApi": {
+          "id": "Ou0iFlWS9CWwjla6",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const d=$json,t=(d.text||'').toLowerCase();let target='Ideas';if(/\\b(documentos?|borradores?|art[ií]culos?|poemas?)\\b/i.test(t))target='Documentos';else if(/\\b(personajes?|lugares?|eventos?|canon|cabos?)\\b/i.test(t))target=/personaj/.test(t)?'Personajes':/lugar/.test(t)?'Lugares':/evento/.test(t)?'Eventos':/cabos?/.test(t)?'Cabos abiertos':'Canon';return [{json:{...d,target}}];"
+      },
+      "id": "9488b54e-c994-417a-87a1-cbe43dba9f37",
+      "name": "40. Preparar CONSULTAR",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2864,
+        1344
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.airtable_url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "airtableTokenApi",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "9438da95-4f2a-4568-9d53-7cb9b07111a4",
+      "name": "41. Airtable - Consultar registros",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3120,
+        1344
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "fE5DY8MYINlemCCN",
+          "name": "Airtable Personal Access Token account"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $json;\n\nconst tables = {\n  Ideas: ['tbl6X4yiSAB1SqrHM', 'Título', 'Idea'],\n  Documentos: ['tblet7NXshqghNyNi', 'Título', 'Tema'],\n  Canon: ['tblPVjl3ulxeJdsAF', 'Hecho canónico', 'Detalle'],\n  Personajes: ['tbl9NM1CIgXXUniea', 'Nombre', 'Descripción'],\n  Lugares: ['tblAiC4Q9yrrGjBRW', 'Nombre', 'Descripción'],\n  Eventos: ['tblaeSbIMexn3o6IM', 'Evento', 'Descripción'],\n  'Cabos abiertos': ['tblOIgX0QNcmdng4c', 'Asunto', 'Descripción'],\n};\n\nconst [table, title, detail] = tables[d.target] || tables.Ideas;\nconst match = (d.text || '').match(/\\bsobre\\s+(.+)|[\"“]([^\"”]+)[\"”]/i);\nconst query = (match?.[1] || match?.[2] || '').trim().slice(0, 100);\n\nlet airtable_url =\n  `https://api.airtable.com/v0/appbrFkc7zcVAgB0r/${table}?pageSize=100`;\n\nif (query) {\n  const escape = value =>\n    value.replace(/\\\\/g, '\\\\\\\\').replace(/\"/g, '\\\\\"');\n\n  const haystack = `LOWER({${title}}&\" \"&{${detail}})`;\n  const exact = `SEARCH(LOWER(\"${escape(query)}\"),${haystack})`;\n  const stem = query.replace(/(?:es|s)$/i, '');\n\n  const formula =\n    stem.length >= 4 && stem !== query\n      ? `OR(${exact},SEARCH(LOWER(\"${escape(stem)}\"),${haystack}))`\n      : exact;\n\n  airtable_url += '&filterByFormula=' + encodeURIComponent(formula);\n}\n\nreturn [{ json: { ...d, query, airtable_url } }];"
+      },
+      "id": "b71a7939-88ae-4c9c-9a36-be5da22b367e",
+      "name": "40A. URL de consulta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3024,
+        1344
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const q=$('40A. URL de consulta').first().json,records=($json.records||[]),label=q.target;const rows=records.slice(0,30).map((r,i)=>{const f=r.fields||{},title=f['Título']||f['Nombre']||f['Evento']||f['Hecho canónico']||f['Asunto']||r.id;const state=f.Estado||f['Estado canónico'];const url=label==='Documentos'&&f['URL Google Doc']?' — '+f['URL Google Doc']:'';return `${i+1}. ${title}${state?' ['+state+']':''}${url}`;});let reply=`${label} (${records.length}${$json.offset?'+':''}):\\n`+(rows.length?rows.join('\\n'):'No hay registros.');if(records.length>30||$json.offset)reply+='\\n\\nMostrando los primeros 30; solicita una búsqueda más específica para ver más.';return [{json:{chat_id:q.chat_id,reply:reply.slice(0,3900)}}];"
+      },
+      "id": "d6fc5a8b-2ffa-404d-8197-c81b41ee8bfd",
+      "name": "42. Formatear consulta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3376,
+        1344
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.reply }}",
+        "additionalFields": {}
+      },
+      "id": "6f8e5f0b-2a10-479e-a104-4c753d255021",
+      "name": "43. Telegram - Resultado consulta",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3616,
+        1344
+      ],
+      "webhookId": "0d682fa9-a126-4c5d-b235-d44bd670e7e8",
+      "credentials": {
+        "telegramApi": {
+          "id": "Ou0iFlWS9CWwjla6",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{chat_id:$json.chat_id,question:$json.text||'',original_request:$json.original_request||$json.text||''}}];"
+      },
+      "id": "09541539-1674-4d71-86b0-d9d9961d2686",
+      "name": "50. Preparar ANALIZAR",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3168,
+        1552
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appbrFkc7zcVAgB0r",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblPVjl3ulxeJdsAF",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "3da769d2-0862-4af5-81d2-9d7f10e8a015",
+      "name": "51. Leer Canon",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        3424,
+        1552
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "fE5DY8MYINlemCCN",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appbrFkc7zcVAgB0r",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl9NM1CIgXXUniea",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "40b70333-786f-4086-8863-7ae75287133f",
+      "name": "52. Leer Personajes",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        3664,
+        1552
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "fE5DY8MYINlemCCN",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appbrFkc7zcVAgB0r",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblaeSbIMexn3o6IM",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "0a392416-cbef-42ef-81fe-f7a5bcde827c",
+      "name": "53. Leer Eventos",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        3920,
+        1552
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "fE5DY8MYINlemCCN",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appbrFkc7zcVAgB0r",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblOIgX0QNcmdng4c",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "6167430c-a587-437f-9151-f66f000312ce",
+      "name": "54. Leer Cabos abiertos",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        4176,
+        1552
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "fE5DY8MYINlemCCN",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appbrFkc7zcVAgB0r",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl6X4yiSAB1SqrHM",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "5f92e178-0f5e-4c8f-a712-11b629c6662a",
+      "name": "55. Leer Ideas",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        4416,
+        1552
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "fE5DY8MYINlemCCN",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const q=$('50. Preparar ANALIZAR').first().json;const names=['51. Leer Canon','52. Leer Personajes','53. Leer Eventos','54. Leer Cabos abiertos','55. Leer Ideas'];const groups=names.map(name=>{const items=$(name).all().map(x=>x.json).filter(x=>x.id);return {table:name.replace(/^\\d+\\. Leer /,''),items:items.slice(0,60).map(x=>({id:x.id,...(x.fields||x)}))};});const evidence=JSON.stringify(groups).slice(0,50000);const prompt=`Analiza en español la solicitud editorial usando SOLO estos registros como evidencia. Señala coincidencias, contradicciones y dudas; cita el nombre/ID de cada registro al afirmar algo. Si faltan datos, dilo. No inventes hechos y no declares nada canon automáticamente. Responde en máximo 3000 caracteres.\\n\\nSolicitud: ${q.question}\\n\\nRegistros: ${evidence}`;return [{json:{chat_id:q.chat_id,gemini_body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.2,maxOutputTokens:1400}})}}];"
+      },
+      "id": "8adaadfd-82ed-446b-8a90-1a9a1b71c0a7",
+      "name": "56. Construir prompt de análisis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4672,
+        1552
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googlePalmApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.gemini_body }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "4646e685-300a-448a-bf62-a858b23ccd02",
+      "name": "57. Gemini - Analizar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4912,
+        1552
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ie5LHKKlkJqIpKM4",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "const q=$('56. Construir prompt de análisis').first().json;const text=($json.candidates||[]).flatMap(x=>x.content?.parts||[]).map(x=>x.text||'').join('\\n').trim();if(!text)throw new Error('Gemini no devolvió análisis.');return [{json:{chat_id:q.chat_id,reply:('🔎 Análisis editorial\\n\\n'+text).slice(0,3900)}}];"
+      },
+      "id": "e1df791f-69cb-44dd-80ba-7b37feca5034",
+      "name": "58. Preparar respuesta análisis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5168,
+        1552
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.reply }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "28f7ad91-1795-42fe-b19f-3b74a4b734ef",
+      "name": "59. Telegram - Análisis",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        5424,
+        1552
+      ],
+      "webhookId": "868ebfbe-60ac-445c-bec5-b939ab649889",
+      "credentials": {
+        "telegramApi": {
+          "id": "Ou0iFlWS9CWwjla6",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{chat_id:$json.chat_id}}];"
+      },
+      "id": "fa4140cc-eb86-47fa-8542-9e12be9ce17e",
+      "name": "60. Preparar ESTADO",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3424,
+        1856
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appbrFkc7zcVAgB0r",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblet7NXshqghNyNi",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "a0471070-6398-481f-ace6-b194813bd714",
+      "name": "61. Leer Documentos",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        3664,
+        1856
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "fE5DY8MYINlemCCN",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appbrFkc7zcVAgB0r",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl6X4yiSAB1SqrHM",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "93e6afac-ab6f-4703-bf90-2516d9758ff7",
+      "name": "62. Leer Ideas",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        3920,
+        1856
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "fE5DY8MYINlemCCN",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appbrFkc7zcVAgB0r",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblOIgX0QNcmdng4c",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "7735cafe-dc76-4d6a-978f-fd47e12a08b4",
+      "name": "63. Leer Cabos abiertos",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        4176,
+        1856
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "fE5DY8MYINlemCCN",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const get=n=>$(n).all().map(x=>x.json).filter(x=>x.id).map(x=>x.fields||x);const docs=get('61. Leer Documentos'),ideas=get('62. Leer Ideas'),cabos=get('63. Leer Cabos abiertos');const drafts=docs.filter(x=>x.Estado==='BORRADOR'),review=docs.filter(x=>x.Estado==='EN REVISIÓN'),pending=ideas.filter(x=>!x.Estado||x.Estado==='Pendiente'),open=cabos.filter(x=>!x.Estado||!/cerrad|resuelt|descartad/i.test(x.Estado));const list=(a,k)=>a.slice(0,8).map(x=>'• '+(x[k]||'Sin título')).join('\\n')||'• Ninguno';const reply=`📋 Estado editorial\\n\\nDocumentos: ${docs.length} (${drafts.length} borradores; ${review.length} en revisión)\\nIdeas pendientes: ${pending.length}\\nCabos abiertos: ${open.length}\\n\\nBorradores:\\n${list(drafts,'Título')}\\n\\nEn revisión:\\n${list(review,'Título')}\\n\\nIdeas pendientes:\\n${list(pending,'Título')}\\n\\nCabos abiertos:\\n${list(open,'Asunto')}`;return [{json:{chat_id:$('60. Preparar ESTADO').first().json.chat_id,reply:reply.slice(0,3900)}}];"
+      },
+      "id": "e7e695cb-4486-4ea9-b050-e7e0192fac09",
+      "name": "64. Resumir ESTADO",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4416,
+        1856
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.reply }}",
+        "additionalFields": {}
+      },
+      "id": "80189f21-514d-4c7a-8357-d46be7960e8c",
+      "name": "65. Telegram - ESTADO",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        4672,
+        1856
+      ],
+      "webhookId": "0e25d297-e9dd-4a97-a99a-0b0bd7190f09",
+      "credentials": {
+        "telegramApi": {
+          "id": "Ou0iFlWS9CWwjla6",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $('13. Construir prompt final').first().json;\nconst p = { ...(source.payload || {}) };\n\nconst text = ($json.candidates?.[0]?.content?.parts || [])\n  .map(part => part.text || '')\n  .join('\\n')\n  .trim();\n\nif (!text) {\n  throw new Error('Gemini no devolvió contenido para revisión humana.');\n}\n\nconst lines = text.split(/\\r?\\n/).map(x => x.trim()).filter(Boolean);\nconst title = (lines[0] || `${p.tipo || 'Documento'}: ${p.tema || 'Sin tema'}`)\n  .replace(/^#+\\s*/, '')\n  .slice(0, 180);\nconst body = (lines.length > 1 ? lines.slice(1).join('\\n\\n') : text).trim();\nconst words = (body.match(/\\S+/g) || []).length;\n\np.draft_title = title;\np.draft_body = body;\np.draft_word_count = words;\np.draft_created_at = source.created_at;\np.aprobacion_humana = false;\np.revision_count = Number(p.revision_count) || 0;\n\nconst esc = value => String(value || '')\n  .replace(/&/g, '&amp;')\n  .replace(/</g, '&lt;')\n  .replace(/>/g, '&gt;');\n\nconst previewRaw = body.length > 1200 ? body.slice(0, 1200) + '…' : body;\nconst message =\n  `<b>🧑‍💼 REVISIÓN HUMANA REQUERIDA</b>\\n\\n` +\n  `<b>Título:</b> ${esc(title)}\\n` +\n  `<b>Extensión:</b> ${words} palabras (solicitadas: ${esc(p.extension || 'N/D')})\\n\\n` +\n  `${esc(previewRaw)}\\n\\n` +\n  `<b>⚠️ IMPORTANTE: si solicitas CAMBIOS, se realizará una nueva llamada a Gemini y se consumirán tokens adicionales.</b>\\n\\n` +\n  `Responde:\\n` +\n  `• <b>APROBAR</b> para crear el Google Doc\\n` +\n  `• <b>RECHAZAR</b> para descartarlo\\n` +\n  `• <b>CAMBIAR:</b> seguido de tus instrucciones para generar una nueva versión`;\n\nreturn [{\n  json: {\n    chat_id: source.chat_id,\n    pending_record_id: source.pending_record_id,\n    payload_json: JSON.stringify(p),\n    review_message: message,\n    now: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "e06cc22e-ff80-47eb-8035-4c6721fcbfd6",
+      "name": "15H. Preparar aprobación humana",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appbrFkc7zcVAgB0r",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblGT6xPOHqOITWtb",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Paso pendiente": "aprobar_borrador",
+            "Payload JSON": "={{ $json.payload_json }}",
+            "Activa": true,
+            "Última actualización": "={{ $json.now }}",
+            "id": "={{ $json.pending_record_id }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "Chat ID",
+              "displayName": "Chat ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Intención",
+              "displayName": "Intención",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Paso pendiente",
+              "displayName": "Paso pendiente",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Payload JSON",
+              "displayName": "Payload JSON",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Activa",
+              "displayName": "Activa",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Última actualización",
+              "displayName": "Última actualización",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "896da67b-af57-43ae-8901-4f17d13bcbfd",
+      "name": "15I. Airtable - Esperar aprobación",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        944,
+        -304
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "fE5DY8MYINlemCCN",
+          "name": "Airtable Personal Access Token account"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('15H. Preparar aprobación humana').first().json.chat_id }}",
+        "text": "={{ $('15H. Preparar aprobación humana').first().json.review_message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "2a72e547-fca1-4479-b725-9189693bd16d",
+      "name": "15J. Telegram - Solicitar aprobación",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1184,
+        -304
+      ],
+      "webhookId": "e75cbf55-f451-45a5-8a9b-322725e7a411",
+      "credentials": {
+        "telegramApi": {
+          "id": "Ou0iFlWS9CWwjla6",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "6ae1c3d2-690a-462b-a0d9-f94c8a1e7bf4",
+              "leftValue": "={{ $('6A. Procesar respuesta pendiente').first().json.next_step }}",
+              "rightValue": "aprobado_documentar",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f361fb7f-c750-4e71-9a33-443a6480e119",
+      "name": "10A. ¿Borrador aprobado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -128,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $('6A. Procesar respuesta pendiente').first().json;\nconst p = JSON.parse(d.updated_payload_json || '{}');\n\nif (!p.draft_body || !p.draft_title) {\n  throw new Error('No se encontró el borrador aprobado en la conversación pendiente.');\n}\n\nreturn [{\n  json: {\n    chat_id: d.chat_id,\n    approved_draft: {\n      payload: p,\n      title: p.draft_title,\n      body: p.draft_body,\n      word_count: Number(p.draft_word_count) || 0,\n      created_at: p.draft_created_at || new Date().toISOString()\n    }\n  }\n}];"
+      },
+      "id": "63456e2a-a56a-41cb-8310-9a927e02468e",
+      "name": "10B. Recuperar borrador aprobado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        112,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json || {};\nconst err = raw.error || raw;\nconst message =\n  err.message ||\n  raw.message ||\n  raw.description ||\n  raw.errorMessage ||\n  'Error no especificado';\n\nlet detail;\ntry {\n  detail = JSON.stringify(raw).slice(0, 8000);\n} catch (e) {\n  detail = String(raw).slice(0, 8000);\n}\n\nlet chatId = '';\ntry {\n  chatId = String($('2. Normalizar mensaje').first().json.chat_id || '');\n} catch (e) {}\n\nreturn [{json:{\n  fecha:new Date().toISOString(),\n  workflow:'Asistente Editorial',\n  nodo:'14. Gemini - Generar borrador',\n  ruta:'CREAR',\n  chat_id:chatId,\n  mensaje_error:String(message).slice(0,2000),\n  tipo_error:'API externa',\n  estado:'Pendiente',\n  reintentado:true,\n  detalle_tecnico:detail,\n  resuelto:false\n}}];"
+      },
+      "id": "764716ef-c726-4e9c-a17c-79abf8ed2148",
+      "name": "90.01 Error - 14. Gemini - Generar borrador",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        2300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json || {};\nconst err = raw.error || raw;\nconst message =\n  err.message ||\n  raw.message ||\n  raw.description ||\n  raw.errorMessage ||\n  'Error no especificado';\n\nlet detail;\ntry {\n  detail = JSON.stringify(raw).slice(0, 8000);\n} catch (e) {\n  detail = String(raw).slice(0, 8000);\n}\n\nlet chatId = '';\ntry {\n  chatId = String($('2. Normalizar mensaje').first().json.chat_id || '');\n} catch (e) {}\n\nreturn [{json:{\n  fecha:new Date().toISOString(),\n  workflow:'Asistente Editorial',\n  nodo:'15I. Airtable - Esperar aprobación',\n  ruta:'CREAR',\n  chat_id:chatId,\n  mensaje_error:String(message).slice(0,2000),\n  tipo_error:'Datos',\n  estado:'Pendiente',\n  reintentado:true,\n  detalle_tecnico:detail,\n  resuelto:false\n}}];"
+      },
+      "id": "74cbf80f-9964-464a-a952-cd7bcfaaa1f2",
+      "name": "90.02 Error - 15I. Airtable - Esperar aprobación",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        2300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json || {};\nconst err = raw.error || raw;\nconst message =\n  err.message ||\n  raw.message ||\n  raw.description ||\n  raw.errorMessage ||\n  'Error no especificado';\n\nlet detail;\ntry {\n  detail = JSON.stringify(raw).slice(0, 8000);\n} catch (e) {\n  detail = String(raw).slice(0, 8000);\n}\n\nlet chatId = '';\ntry {\n  chatId = String($('2. Normalizar mensaje').first().json.chat_id || '');\n} catch (e) {}\n\nreturn [{json:{\n  fecha:new Date().toISOString(),\n  workflow:'Asistente Editorial',\n  nodo:'15J. Telegram - Solicitar aprobación',\n  ruta:'CREAR',\n  chat_id:chatId,\n  mensaje_error:String(message).slice(0,2000),\n  tipo_error:'API externa',\n  estado:'Pendiente',\n  reintentado:false,\n  detalle_tecnico:detail,\n  resuelto:false\n}}];"
+      },
+      "id": "239215b7-394a-460e-92e0-1d461e665f18",
+      "name": "90.03 Error - 15J. Telegram - Solicitar aprobación",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        2300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json || {};\nconst err = raw.error || raw;\nconst message =\n  err.message ||\n  raw.message ||\n  raw.description ||\n  raw.errorMessage ||\n  'Error no especificado';\n\nlet detail;\ntry {\n  detail = JSON.stringify(raw).slice(0, 8000);\n} catch (e) {\n  detail = String(raw).slice(0, 8000);\n}\n\nlet chatId = '';\ntry {\n  chatId = String($('2. Normalizar mensaje').first().json.chat_id || '');\n} catch (e) {}\n\nreturn [{json:{\n  fecha:new Date().toISOString(),\n  workflow:'Asistente Editorial',\n  nodo:'16. Google Docs - Crear documento',\n  ruta:'CREAR',\n  chat_id:chatId,\n  mensaje_error:String(message).slice(0,2000),\n  tipo_error:'API externa',\n  estado:'Pendiente',\n  reintentado:true,\n  detalle_tecnico:detail,\n  resuelto:false\n}}];"
+      },
+      "id": "be780b69-8a49-4e0d-9164-3e77217522ae",
+      "name": "90.04 Error - 16. Google Docs - Crear documento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        2300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json || {};\nconst err = raw.error || raw;\nconst message =\n  err.message ||\n  raw.message ||\n  raw.description ||\n  raw.errorMessage ||\n  'Error no especificado';\n\nlet detail;\ntry {\n  detail = JSON.stringify(raw).slice(0, 8000);\n} catch (e) {\n  detail = String(raw).slice(0, 8000);\n}\n\nlet chatId = '';\ntry {\n  chatId = String($('2. Normalizar mensaje').first().json.chat_id || '');\n} catch (e) {}\n\nreturn [{json:{\n  fecha:new Date().toISOString(),\n  workflow:'Asistente Editorial',\n  nodo:'17. Google Docs - Insertar cabecera y contenido',\n  ruta:'CREAR',\n  chat_id:chatId,\n  mensaje_error:String(message).slice(0,2000),\n  tipo_error:'API externa',\n  estado:'Pendiente',\n  reintentado:true,\n  detalle_tecnico:detail,\n  resuelto:false\n}}];"
+      },
+      "id": "1612a663-6a6f-4784-a281-b4fbe2f58764",
+      "name": "90.05 Error - 17. Google Docs - Insertar cabecera y contenido",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2120,
+        2300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json || {};\nconst err = raw.error || raw;\nconst message =\n  err.message ||\n  raw.message ||\n  raw.description ||\n  raw.errorMessage ||\n  'Error no especificado';\n\nlet detail;\ntry {\n  detail = JSON.stringify(raw).slice(0, 8000);\n} catch (e) {\n  detail = String(raw).slice(0, 8000);\n}\n\nlet chatId = '';\ntry {\n  chatId = String($('2. Normalizar mensaje').first().json.chat_id || '');\n} catch (e) {}\n\nreturn [{json:{\n  fecha:new Date().toISOString(),\n  workflow:'Asistente Editorial',\n  nodo:'18. Airtable - Registrar metadatos',\n  ruta:'CREAR',\n  chat_id:chatId,\n  mensaje_error:String(message).slice(0,2000),\n  tipo_error:'Datos',\n  estado:'Pendiente',\n  reintentado:true,\n  detalle_tecnico:detail,\n  resuelto:false\n}}];"
+      },
+      "id": "c336ba2f-0b0b-47dd-abf7-d460f49b25b4",
+      "name": "90.06 Error - 18. Airtable - Registrar metadatos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        2500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json || {};\nconst err = raw.error || raw;\nconst message =\n  err.message ||\n  raw.message ||\n  raw.description ||\n  raw.errorMessage ||\n  'Error no especificado';\n\nlet detail;\ntry {\n  detail = JSON.stringify(raw).slice(0, 8000);\n} catch (e) {\n  detail = String(raw).slice(0, 8000);\n}\n\nlet chatId = '';\ntry {\n  chatId = String($('2. Normalizar mensaje').first().json.chat_id || '');\n} catch (e) {}\n\nreturn [{json:{\n  fecha:new Date().toISOString(),\n  workflow:'Asistente Editorial',\n  nodo:'19. Telegram - Confirmar borrador',\n  ruta:'CREAR',\n  chat_id:chatId,\n  mensaje_error:String(message).slice(0,2000),\n  tipo_error:'API externa',\n  estado:'Pendiente',\n  reintentado:false,\n  detalle_tecnico:detail,\n  resuelto:false\n}}];"
+      },
+      "id": "c0e3e257-58a7-4b76-a121-afe7724b3af5",
+      "name": "90.07 Error - 19. Telegram - Confirmar borrador",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        2500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json || {};\nconst err = raw.error || raw;\nconst message =\n  err.message ||\n  raw.message ||\n  raw.description ||\n  raw.errorMessage ||\n  'Error no especificado';\n\nlet detail;\ntry {\n  detail = JSON.stringify(raw).slice(0, 8000);\n} catch (e) {\n  detail = String(raw).slice(0, 8000);\n}\n\nlet chatId = '';\ntry {\n  chatId = String($('2. Normalizar mensaje').first().json.chat_id || '');\n} catch (e) {}\n\nreturn [{json:{\n  fecha:new Date().toISOString(),\n  workflow:'Asistente Editorial',\n  nodo:'20. Gmail - Confirmar borrador',\n  ruta:'CREAR',\n  chat_id:chatId,\n  mensaje_error:String(message).slice(0,2000),\n  tipo_error:'API externa',\n  estado:'Pendiente',\n  reintentado:true,\n  detalle_tecnico:detail,\n  resuelto:false\n}}];"
+      },
+      "id": "e669e12e-419d-41e5-973f-84c9cfdefc0a",
+      "name": "90.08 Error - 20. Gmail - Confirmar borrador",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        2500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json || {};\nconst err = raw.error || raw;\nconst message =\n  err.message ||\n  raw.message ||\n  raw.description ||\n  raw.errorMessage ||\n  'Error no especificado';\n\nlet detail;\ntry {\n  detail = JSON.stringify(raw).slice(0, 8000);\n} catch (e) {\n  detail = String(raw).slice(0, 8000);\n}\n\nlet chatId = '';\ntry {\n  chatId = String($('2. Normalizar mensaje').first().json.chat_id || '');\n} catch (e) {}\n\nreturn [{json:{\n  fecha:new Date().toISOString(),\n  workflow:'Asistente Editorial',\n  nodo:'31. Airtable - Crear idea',\n  ruta:'GUARDAR',\n  chat_id:chatId,\n  mensaje_error:String(message).slice(0,2000),\n  tipo_error:'Datos',\n  estado:'Pendiente',\n  reintentado:true,\n  detalle_tecnico:detail,\n  resuelto:false\n}}];"
+      },
+      "id": "c32faa3d-2d23-4ec0-b9cf-d92e9c450fb9",
+      "name": "90.09 Error - 31. Airtable - Crear idea",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        2500
+      ]    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json || {};\nconst err = raw.error || raw;\nconst message =\n  err.message ||\n  raw.message ||\n  raw.description ||\n  raw.errorMessage ||\n  'Error no especificado';\n\nlet detail;\ntry {\n  detail = JSON.stringify(raw).slice(0, 8000);\n} catch (e) {\n  detail = String(raw).slice(0, 8000);\n}\n\nlet chatId = '';\ntry {\n  chatId = String($('2. Normalizar mensaje').first().json.chat_id || '');\n} catch (e) {}\n\nreturn [{json:{\n  fecha:new Date().toISOString(),\n  workflow:'Asistente Editorial',\n  nodo:'41. Airtable - Consultar registros',\n  ruta:'CONSULTAR',\n  chat_id:chatId,\n  mensaje_error:String(message).slice(0,2000),\n  tipo_error:'API externa',\n  estado:'Pendiente',\n  reintentado:true,\n  detalle_tecnico:detail,\n  resuelto:false\n}}];"
+      },
+      "id": "3e7778c8-e812-4bdc-9349-57e04fad8800",
+      "name": "90.10 Error - 41. Airtable - Consultar registros",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2120,
+        2500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json || {};\nconst err = raw.error || raw;\nconst message =\n  err.message ||\n  raw.message ||\n  raw.description ||\n  raw.errorMessage ||\n  'Error no especificado';\n\nlet detail;\ntry {\n  detail = JSON.stringify(raw).slice(0, 8000);\n} catch (e) {\n  detail = String(raw).slice(0, 8000);\n}\n\nlet chatId = '';\ntry {\n  chatId = String($('2. Normalizar mensaje').first().json.chat_id || '');\n} catch (e) {}\n\nreturn [{json:{\n  fecha:new Date().toISOString(),\n  workflow:'Asistente Editorial',\n  nodo:'57. Gemini - Analizar',\n  ruta:'ANALIZAR',\n  chat_id:chatId,\n  mensaje_error:String(message).slice(0,2000),\n  tipo_error:'API externa',\n  estado:'Pendiente',\n  reintentado:true,\n  detalle_tecnico:detail,\n  resuelto:false\n}}];"
+      },
+      "id": "f21b3734-aefd-40e7-9a64-5f025658f40f",
+      "name": "90.11 Error - 57. Gemini - Analizar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        2700
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json || {};\nconst err = raw.error || raw;\nconst message =\n  err.message ||\n  raw.message ||\n  raw.description ||\n  raw.errorMessage ||\n  'Error no especificado';\n\nlet detail;\ntry {\n  detail = JSON.stringify(raw).slice(0, 8000);\n} catch (e) {\n  detail = String(raw).slice(0, 8000);\n}\n\nlet chatId = '';\ntry {\n  chatId = String($('2. Normalizar mensaje').first().json.chat_id || '');\n} catch (e) {}\n\nreturn [{json:{\n  fecha:new Date().toISOString(),\n  workflow:'Asistente Editorial',\n  nodo:'59. Telegram - Análisis',\n  ruta:'ANALIZAR',\n  chat_id:chatId,\n  mensaje_error:String(message).slice(0,2000),\n  tipo_error:'API externa',\n  estado:'Pendiente',\n  reintentado:false,\n  detalle_tecnico:detail,\n  resuelto:false\n}}];"
+      },
+      "id": "b9c5745e-5c83-45cb-ad0b-b66921faf159",
+      "name": "90.12 Error - 59. Telegram - Análisis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        2700
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json || {};\nconst err = raw.error || raw;\nconst message =\n  err.message ||\n  raw.message ||\n  raw.description ||\n  raw.errorMessage ||\n  'Error no especificado';\n\nlet detail;\ntry {\n  detail = JSON.stringify(raw).slice(0, 8000);\n} catch (e) {\n  detail = String(raw).slice(0, 8000);\n}\n\nlet chatId = '';\ntry {\n  chatId = String($('2. Normalizar mensaje').first().json.chat_id || '');\n} catch (e) {}\n\nreturn [{json:{\n  fecha:new Date().toISOString(),\n  workflow:'Asistente Editorial',\n  nodo:'65. Telegram - ESTADO',\n  ruta:'ESTADO',\n  chat_id:chatId,\n  mensaje_error:String(message).slice(0,2000),\n  tipo_error:'API externa',\n  estado:'Pendiente',\n  reintentado:false,\n  detalle_tecnico:detail,\n  resuelto:false\n}}];"
+      },
+      "id": "703bf7ce-5a49-4b83-925f-a9c5ef6a8e0e",
+      "name": "90.13 Error - 65. Telegram - ESTADO",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        2700
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appbrFkc7zcVAgB0r",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl7hCLjssMsQ9PFR",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Fecha": "={{ $json.fecha }}",
+            "Workflow": "={{ $json.workflow }}",
+            "Nodo": "={{ $json.nodo }}",
+            "Ruta": "={{ $json.ruta }}",
+            "Chat ID": "={{ $json.chat_id }}",
+            "Mensaje de error": "={{ $json.mensaje_error }}",
+            "Tipo de error": "={{ $json.tipo_error }}",
+            "Estado": "Pendiente",
+            "Reintentado": "={{ $json.reintentado }}",
+            "Detalle técnico": "={{ $json.detalle_tecnico }}",
+            "Resuelto": false
+          }
+        },
+        "options": {}
+      },
+      "id": "dd64a2a4-55d8-441d-9e33-4714cf71ceef",
+      "name": "91. Airtable - Registrar error",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2480,
+        2320
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "fE5DY8MYINlemCCN",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appbrFkc7zcVAgB0r",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbleY4QB3Czzx13nJ",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Fecha": "={{ $json.fecha }}",
+            "Workflow": "={{ $json.workflow }}",
+            "Ruta": "={{ $json.ruta }}",
+            "Estado": "Error",
+            "Chat ID": "={{ $json.chat_id }}",
+            "Detalle": "={{ $json.nodo + ': ' + $json.mensaje_error }}",
+            "Aprobación humana": false
+          }
+        },
+        "options": {}
+      },
+      "id": "3674b360-e128-4513-839b-56249e6b12f3",
+      "name": "92. Airtable - Registrar ejecución error",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2480,
+        2480
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "fE5DY8MYINlemCCN",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ '⚠️ Ocurrió un error controlado en ' + $json.nodo + '.\\nRuta: ' + $json.ruta + '\\nNo se continuará con esa operación. El error quedó registrado.' }}",
+        "additionalFields": {}
+      },
+      "id": "5c80e2a9-f4d2-42d5-a4ed-50a75df93fa5",
+      "name": "93. Telegram - Avisar error controlado",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2480,
+        2640
+      ],
+      "webhookId": "7d2b9638-2fc0-4cf5-9b32-a55434cacc81",
+      "credentials": {
+        "telegramApi": {
+          "id": "Ou0iFlWS9CWwjla6",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "let chatId='';\ntry { chatId=String($('2. Normalizar mensaje').first().json.chat_id||''); } catch(e) {}\nreturn [{json:{\n  fecha:new Date().toISOString(),\n  workflow:'Asistente Editorial',\n  ruta:'CREAR',\n  estado:'Éxito',\n  chat_id:chatId,\n  detalle:'Documento creado tras aprobación humana',\n  aprobacion_humana:true\n}}];"
+      },
+      "id": "b92bf709-54c9-4ab2-8edc-bc8e5d44e02b",
+      "name": "96.A Preparar log éxito CREAR",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2100,
+        2050
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "let chatId='';\ntry { chatId=String($('2. Normalizar mensaje').first().json.chat_id||''); } catch(e) {}\nreturn [{json:{\n  fecha:new Date().toISOString(),\n  workflow:'Asistente Editorial',\n  ruta:'GUARDAR',\n  estado:'Éxito',\n  chat_id:chatId,\n  detalle:'Idea guardada correctamente',\n  aprobacion_humana:false\n}}];"
+      },
+      "id": "57f9a925-3156-4f25-9e4f-5dc4b3333af9",
+      "name": "96.B Preparar log éxito GUARDAR",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2350,
+        2050
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "let chatId='';\ntry { chatId=String($('2. Normalizar mensaje').first().json.chat_id||''); } catch(e) {}\nreturn [{json:{\n  fecha:new Date().toISOString(),\n  workflow:'Asistente Editorial',\n  ruta:'CONSULTAR',\n  estado:'Éxito',\n  chat_id:chatId,\n  detalle:'Consulta respondida correctamente',\n  aprobacion_humana:false\n}}];"
+      },
+      "id": "ddf23f36-4a8c-4fa9-8d40-5e0bd823b7b3",
+      "name": "96.C Preparar log éxito CONSULTAR",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        2050
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "let chatId='';\ntry { chatId=String($('2. Normalizar mensaje').first().json.chat_id||''); } catch(e) {}\nreturn [{json:{\n  fecha:new Date().toISOString(),\n  workflow:'Asistente Editorial',\n  ruta:'ANALIZAR',\n  estado:'Éxito',\n  chat_id:chatId,\n  detalle:'Análisis respondido correctamente',\n  aprobacion_humana:false\n}}];"
+      },
+      "id": "4a7b9a66-fc35-4bf4-b909-7cc5e70437b3",
+      "name": "96.D Preparar log éxito ANALIZAR",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2850,
+        2050
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "let chatId='';\ntry { chatId=String($('2. Normalizar mensaje').first().json.chat_id||''); } catch(e) {}\nreturn [{json:{\n  fecha:new Date().toISOString(),\n  workflow:'Asistente Editorial',\n  ruta:'ESTADO',\n  estado:'Éxito',\n  chat_id:chatId,\n  detalle:'Estado editorial respondido correctamente',\n  aprobacion_humana:false\n}}];"
+      },
+      "id": "ad3e31cf-f876-4cec-ad11-d16a5303e9c8",
+      "name": "96.E Preparar log éxito ESTADO",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3100,
+        2050
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appbrFkc7zcVAgB0r",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbleY4QB3Czzx13nJ",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Fecha": "={{ $json.fecha }}",
+            "Workflow": "={{ $json.workflow }}",
+            "Ruta": "={{ $json.ruta }}",
+            "Estado": "Éxito",
+            "Chat ID": "={{ $json.chat_id }}",
+            "Detalle": "={{ $json.detalle }}",
+            "Aprobación humana": "={{ $json.aprobacion_humana }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "818a896d-6173-4a75-a607-fed4cd667c25",
+      "name": "97. Airtable - Registrar ejecución éxito",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        3400,
+        2050
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "fE5DY8MYINlemCCN",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d7deea8e-dbdb-4725-a755-0c059f26bf96",
+              "leftValue": "={{ $('6A. Procesar respuesta pendiente').first().json.next_step }}",
+              "rightValue": "solicitar_cambios",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5b43b5df-f6c2-4ab3-bcd8-75a866b93d77",
+      "name": "10C. ¿Solicitó cambios?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -128,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $('6A. Procesar respuesta pendiente').first().json;\nconst p = JSON.parse(d.updated_payload_json || '{}');\n\nif (!p.draft_body || !p.draft_title) {\n  throw new Error('No se encontró el borrador anterior para aplicar cambios.');\n}\nif (!p.solicitud_cambios) {\n  throw new Error('No se encontraron instrucciones de cambio.');\n}\n\nconst prompt =\n  `Eres un asistente editorial. Revisa un borrador en español siguiendo exactamente las instrucciones del usuario. ` +\n  `Devuelve exclusivamente el texto completo revisado, sin comentarios sobre el proceso, sin bloques de código y sin metadatos. ` +\n  `La primera línea debe ser el título. Mantén el tema, el tipo y aproximadamente la extensión solicitada, salvo que el cambio pedido indique otra cosa.\\n\\n` +\n  `Tipo: ${p.tipo || 'Documento'}\\n` +\n  `Tema: ${p.tema || ''}\\n` +\n  `Extensión objetivo: ${p.extension || 'No indicada'} palabras\\n` +\n  `Categoría: ${p.categoria || ''}\\n` +\n  `Lineamientos específicos originales: ${p.lineamientos_especificos || 'Ninguno'}\\n\\n` +\n  `INSTRUCCIONES DE CAMBIO DEL USUARIO:\\n${p.solicitud_cambios}\\n\\n` +\n  `BORRADOR ANTERIOR:\\n${p.draft_title}\\n\\n${p.draft_body}\\n\\n` +\n  `No inventes hechos, fuentes o citas. El resultado sigue siendo un borrador sujeto a aprobación humana.`;\n\nconst gemini_body = JSON.stringify({\n  contents: [{ parts: [{ text: prompt }] }],\n  generationConfig: { temperature: 0.6, maxOutputTokens: 8192 }\n});\n\nreturn [{\n  json: {\n    chat_id: d.chat_id,\n    pending_record_id: d.pending_record_id,\n    payload: p,\n    prompt,\n    gemini_body,\n    revised_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "fa5ecc23-f09f-4e0c-8ee3-07ddc5ddb0eb",
+      "name": "10D. Construir prompt de cambios",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        112,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googlePalmApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.gemini_body }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "efdb5e07-749e-4236-9e91-14e89ab7081c",
+      "name": "10E. Gemini - Regenerar con cambios",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        352,
+        576
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ie5LHKKlkJqIpKM4",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $('10D. Construir prompt de cambios').first().json;\nconst p = { ...(source.payload || {}) };\n\nconst text = ($json.candidates?.[0]?.content?.parts || [])\n  .map(part => part.text || '')\n  .join('\\n')\n  .trim();\n\nif (!text) {\n  throw new Error('Gemini no devolvió contenido para la versión revisada.');\n}\n\nconst lines = text.split(/\\r?\\n/).map(x => x.trim()).filter(Boolean);\nconst title = (lines[0] || `${p.tipo || 'Documento'}: ${p.tema || 'Sin tema'}`)\n  .replace(/^#+\\s*/, '')\n  .slice(0, 180);\nconst body = (lines.length > 1 ? lines.slice(1).join('\\n\\n') : text).trim();\nconst words = (body.match(/\\S+/g) || []).length;\n\np.draft_title = title;\np.draft_body = body;\np.draft_word_count = words;\np.draft_created_at = source.revised_at;\np.aprobacion_humana = false;\np.ultima_solicitud_cambios = p.solicitud_cambios || '';\ndelete p.solicitud_cambios;\n\nconst esc = value => String(value || '')\n  .replace(/&/g, '&amp;')\n  .replace(/</g, '&lt;')\n  .replace(/>/g, '&gt;');\n\nconst previewRaw = body.length > 1200 ? body.slice(0, 1200) + '…' : body;\nconst message =\n  `<b>✏️ NUEVA VERSIÓN GENERADA</b>\\n\\n` +\n  `<b>Revisión:</b> ${Number(p.revision_count) || 1}\\n` +\n  `<b>Título:</b> ${esc(title)}\\n` +\n  `<b>Extensión:</b> ${words} palabras\\n\\n` +\n  `${esc(previewRaw)}\\n\\n` +\n  `<b>⚠️ IMPORTANTE: si vuelves a solicitar CAMBIOS, se realizará otra llamada a Gemini y se consumirán tokens adicionales.</b>\\n\\n` +\n  `Responde:\\n` +\n  `• <b>APROBAR</b> para crear el Google Doc\\n` +\n  `• <b>RECHAZAR</b> para descartarlo\\n` +\n  `• <b>CAMBIAR:</b> seguido de nuevas instrucciones`;\n\nreturn [{\n  json: {\n    chat_id: source.chat_id,\n    pending_record_id: source.pending_record_id,\n    payload_json: JSON.stringify(p),\n    review_message: message,\n    now: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "9df67adb-612c-4493-8b83-694f77c22d7d",
+      "name": "10F. Preparar nueva aprobación",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appbrFkc7zcVAgB0r",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblGT6xPOHqOITWtb",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Paso pendiente": "aprobar_borrador",
+            "Payload JSON": "={{ $json.payload_json }}",
+            "Activa": true,
+            "Última actualización": "={{ $json.now }}",
+            "id": "={{ $json.pending_record_id }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "Chat ID",
+              "displayName": "Chat ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Intención",
+              "displayName": "Intención",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Paso pendiente",
+              "displayName": "Paso pendiente",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Payload JSON",
+              "displayName": "Payload JSON",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Activa",
+              "displayName": "Activa",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Última actualización",
+              "displayName": "Última actualización",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "5a255fb7-b5eb-4e48-ab8e-d5d07f7c0bc0",
+      "name": "10G. Airtable - Esperar aprobación revisada",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        832,
+        576
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "fE5DY8MYINlemCCN",
+          "name": "Airtable Personal Access Token account"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('10F. Preparar nueva aprobación').first().json.chat_id }}",
+        "text": "={{ $('10F. Preparar nueva aprobación').first().json.review_message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "a409fa5d-1c9f-4064-9cca-91cb1158ba1c",
+      "name": "10H. Telegram - Solicitar aprobación revisada",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1072,
+        576
+      ],
+      "webhookId": "e8452513-13ea-4690-aaef-0ce0c12e82a1",
+      "credentials": {
+        "telegramApi": {
+          "id": "Ou0iFlWS9CWwjla6",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json || {};\nconst err = raw.error || raw;\nconst message = err.message || raw.message || raw.description || raw.errorMessage || 'Error no especificado';\nlet detail;\ntry { detail = JSON.stringify(raw).slice(0, 8000); } catch (e) { detail = String(raw).slice(0, 8000); }\nlet chatId = '';\ntry { chatId = String($('2. Normalizar mensaje').first().json.chat_id || ''); } catch (e) {}\nreturn [{json:{\n  fecha:new Date().toISOString(),\n  workflow:'Asistente Editorial',\n  nodo:'10E. Gemini - Regenerar con cambios',\n  ruta:'CREAR',\n  chat_id:chatId,\n  mensaje_error:String(message).slice(0,2000),\n  tipo_error:'API externa',\n  estado:'Pendiente',\n  reintentado:true,\n  detalle_tecnico:detail,\n  resuelto:false\n}}];"
+      },
+      "id": "b05fb3bf-9389-48a1-9ad8-d89edb421d54",
+      "name": "90.12 Error - 10E. Gemini - Regenerar con cambios",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        2580
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json || {};\nconst err = raw.error || raw;\nconst message = err.message || raw.message || raw.description || raw.errorMessage || 'Error no especificado';\nlet detail;\ntry { detail = JSON.stringify(raw).slice(0, 8000); } catch (e) { detail = String(raw).slice(0, 8000); }\nlet chatId = '';\ntry { chatId = String($('2. Normalizar mensaje').first().json.chat_id || ''); } catch (e) {}\nreturn [{json:{\n  fecha:new Date().toISOString(),\n  workflow:'Asistente Editorial',\n  nodo:'10G. Airtable - Esperar aprobación revisada',\n  ruta:'CREAR',\n  chat_id:chatId,\n  mensaje_error:String(message).slice(0,2000),\n  tipo_error:'Datos',\n  estado:'Pendiente',\n  reintentado:true,\n  detalle_tecnico:detail,\n  resuelto:false\n}}];"
+      },
+      "id": "4a906fae-0279-4ab4-9302-2ebe69bc4b88",
+      "name": "90.13 Error - 10G. Airtable - Esperar aprobación revisada",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        2580
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json || {};\nconst err = raw.error || raw;\nconst message = err.message || raw.message || raw.description || raw.errorMessage || 'Error no especificado';\nlet detail;\ntry { detail = JSON.stringify(raw).slice(0, 8000); } catch (e) { detail = String(raw).slice(0, 8000); }\nlet chatId = '';\ntry { chatId = String($('2. Normalizar mensaje').first().json.chat_id || ''); } catch (e) {}\nreturn [{json:{\n  fecha:new Date().toISOString(),\n  workflow:'Asistente Editorial',\n  nodo:'10H. Telegram - Solicitar aprobación revisada',\n  ruta:'CREAR',\n  chat_id:chatId,\n  mensaje_error:String(message).slice(0,2000),\n  tipo_error:'API externa',\n  estado:'Pendiente',\n  reintentado:false,\n  detalle_tecnico:detail,\n  resuelto:false\n}}];"
+      },
+      "id": "d0b37da9-38ee-4985-ab71-37397e0e9e4d",
+      "name": "90.14 Error - 10H. Telegram - Solicitar aprobación revisada",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        2580
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "1. Telegram - Mensaje recibido": {
+      "main": [
+        [
+          {
+            "node": "2. Normalizar mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Normalizar mensaje": {
+      "main": [
+        [
+          {
+            "node": "3. Airtable - Buscar conversación pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Airtable - Buscar conversación pendiente": {
+      "main": [
+        [
+          {
+            "node": "4. Resolver contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Resolver contexto": {
+      "main": [
+        [
+          {
+            "node": "5. ¿Hay conversación pendiente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. ¿Hay conversación pendiente?": {
+      "main": [
+        [
+          {
+            "node": "6A. Procesar respuesta pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "6B. Interpretar intención preliminar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6A. Procesar respuesta pendiente": {
+      "main": [
+        [
+          {
+            "node": "7A. Airtable - Actualizar conversación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "7A. Airtable - Actualizar conversación": {
+      "main": [
+        [
+          {
+            "node": "10A. ¿Borrador aprobado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6B. Interpretar intención preliminar": {
+      "main": [
+        [
+          {
+            "node": "7B. ¿Es una creación?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "7B. ¿Es una creación?": {
+      "main": [
+        [
+          {
+            "node": "8B. Preparar solicitud CREAR",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "22. ¿Guardar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "8B. Preparar solicitud CREAR": {
+      "main": [
+        [
+          {
+            "node": "9B. Airtable - Guardar conversación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "9B. Airtable - Guardar conversación": {
+      "main": [
+        [
+          {
+            "node": "10B. Telegram - Preguntar categoría",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "8C. Preparar respuesta otras acciones": {
+      "main": [
+        [
+          {
+            "node": "9C. Telegram - Acción futura",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11. ¿Solicitud CREAR completa?": {
+      "main": [
+        [
+          {
+            "node": "12. Airtable - Buscar lineamientos activos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "8A. Telegram - Continuar conversación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "12. Airtable - Buscar lineamientos activos": {
+      "main": [
+        [
+          {
+            "node": "13. Construir prompt final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "13. Construir prompt final": {
+      "main": [
+        [
+          {
+            "node": "14. Gemini - Generar borrador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "14. Gemini - Generar borrador": {
+      "main": [
+        [
+          {
+            "node": "15H. Preparar aprobación humana",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "90.01 Error - 14. Gemini - Generar borrador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "15. Preparar documento y metadatos": {
+      "main": [
+        [
+          {
+            "node": "16. Google Docs - Crear documento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "16. Google Docs - Crear documento": {
+      "main": [
+        [
+          {
+            "node": "17. Google Docs - Insertar cabecera y contenido",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "90.04 Error - 16. Google Docs - Crear documento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "17. Google Docs - Insertar cabecera y contenido": {
+      "main": [
+        [
+          {
+            "node": "18. Airtable - Registrar metadatos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "90.05 Error - 17. Google Docs - Insertar cabecera y contenido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "18. Airtable - Registrar metadatos": {
+      "main": [
+        [
+          {
+            "node": "19. Telegram - Confirmar borrador",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "90.06 Error - 18. Airtable - Registrar metadatos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "19. Telegram - Confirmar borrador": {
+      "main": [
+        [
+          {
+            "node": "20. Gmail - Confirmar borrador",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "90.07 Error - 19. Telegram - Confirmar borrador",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "20. Gmail - Confirmar borrador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "21. ¿Idea lista para guardar?": {
+      "main": [
+        [
+          {
+            "node": "30. Preparar registro de idea",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "11. ¿Solicitud CREAR completa?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "22. ¿Guardar?": {
+      "main": [
+        [
+          {
+            "node": "26. Preparar GUARDAR",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "23. ¿Consultar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "23. ¿Consultar?": {
+      "main": [
+        [
+          {
+            "node": "40. Preparar CONSULTAR",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "24. ¿Analizar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "24. ¿Analizar?": {
+      "main": [
+        [
+          {
+            "node": "50. Preparar ANALIZAR",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "25. ¿Estado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "25. ¿Estado?": {
+      "main": [
+        [
+          {
+            "node": "60. Preparar ESTADO",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "8C. Preparar respuesta otras acciones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "26. Preparar GUARDAR": {
+      "main": [
+        [
+          {
+            "node": "27. ¿Falta categoría?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "27. ¿Falta categoría?": {
+      "main": [
+        [
+          {
+            "node": "28. Airtable - Pendiente GUARDAR",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "30. Preparar registro de idea",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "28. Airtable - Pendiente GUARDAR": {
+      "main": [
+        [
+          {
+            "node": "29. Telegram - Preguntar categoría de idea",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "30. Preparar registro de idea": {
+      "main": [
+        [
+          {
+            "node": "31. Airtable - Crear idea",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "31. Airtable - Crear idea": {
+      "main": [
+        [
